@@ -58,7 +58,7 @@ spec:
             {{- toYaml .Values.api.resources | nindent 12 }}
           livenessProbe:
             httpGet:
-              path: /live
+              path: /health
               port: {{ .Values.api.service.targetPort }}
             initialDelaySeconds: 30
             periodSeconds: 10
@@ -66,7 +66,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /health
               port: {{ .Values.api.service.targetPort }}
             initialDelaySeconds: 5
             periodSeconds: 5
