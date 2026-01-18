@@ -37,6 +37,8 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 @pytest.fixture(scope="function")
 def db_session():
     """Create a fresh database session for each test"""
+    # Debug: print what tables Base knows about
+    print(f"\n=== Tables in Base.metadata: {list(Base.metadata.tables.keys())} ===\n")
     Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     try:
