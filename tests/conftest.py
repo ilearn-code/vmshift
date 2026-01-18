@@ -12,6 +12,9 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 
+# Import models so they're registered with Base
+from app.models import migration, vm  # noqa: F401
+
 # Use test database from environment or SQLite in-memory as fallback
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///:memory:")
 
