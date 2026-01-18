@@ -1,12 +1,15 @@
 """
 VM Discovery Tasks
 """
+
+import logging
+import time
+
 from celery import shared_task
+
 from app.celery_app import celery_app
 from app.database import SessionLocal
 from app.models.vm import VirtualMachine, VMStatus
-import logging
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -18,31 +21,31 @@ def discover_vms_task(
     host: str,
     username: str,
     password: str,
-    datacenter: str = None
+    datacenter: str = None,
 ):
     """
     Discover virtual machines from a hypervisor
     In production, this would connect to vSphere API
     """
     logger.info(f"Starting VM discovery from {hypervisor_type} at {host}")
-    
+
     db = SessionLocal()
-    
+
     try:
         # Update task state to show progress
         self.update_state(
             state="PROGRESS",
-            meta={"current": 0, "total": 100, "status": "Connecting to hypervisor..."}
+            meta={"current": 0, "total": 100, "status": "Connecting to hypervisor..."},
         )
-        
+
         # Simulate discovery process (replace with actual vSphere integration)
         time.sleep(2)
-        
+
         self.update_state(
             state="PROGRESS",
-            meta={"current": 25, "total": 100, "status": "Scanning datacenter..."}
+            meta={"current": 25, "total": 100, "status": "Scanning datacenter..."},
         )
-        
+
         # Demo: Create some sample VMs
         sample_vms = [
             {
@@ -82,19 +85,25 @@ def discover_vms_task(
                 "discovered_services": ["nginx", "Python Flask"],
             },
         ]
-        
+
         self.update_state(
             state="PROGRESS",
-            meta={"current": 50, "total": 100, "status": "Processing discovered VMs..."}
+            meta={
+                "current": 50,
+                "total": 100,
+                "status": "Processing discovered VMs...",
+            },
         )
-        
+
         discovered_count = 0
         for vm_data in sample_vms:
             # Check if VM already exists
-            existing = db.query(VirtualMachine).filter(
-                VirtualMachine.uuid == vm_data["uuid"]
-            ).first()
-            
+            existing = (
+                db.query(VirtualMachine)
+                .filter(VirtualMachine.uuid == vm_data["uuid"])
+                .first()
+            )
+
             if not existing:
                 vm = VirtualMachine(
                     name=vm_data["name"],
@@ -108,27 +117,27 @@ def discover_vms_task(
                     hypervisor=hypervisor_type,
                     datacenter=vm_data["datacenter"],
                     discovered_services=vm_data["discovered_services"],
-                    status=VMStatus.DISCOVERED
+                    status=VMStatus.DISCOVERED,
                 )
                 db.add(vm)
                 discovered_count += 1
-        
+
         db.commit()
-        
+
         self.update_state(
             state="PROGRESS",
-            meta={"current": 100, "total": 100, "status": "Discovery complete"}
+            meta={"current": 100, "total": 100, "status": "Discovery complete"},
         )
-        
+
         logger.info(f"VM discovery complete. Found {discovered_count} new VMs")
-        
+
         return {
             "status": "success",
             "hypervisor": host,
             "vms_discovered": discovered_count,
-            "message": f"Successfully discovered {discovered_count} new virtual machines"
+            "message": f"Successfully discovered {discovered_count} new virtual machines",
         }
-        
+
     except Exception as e:
         logger.error(f"VM discovery failed: {str(e)}")
         raise
@@ -142,46 +151,46 @@ def analyze_vm_task(self, vm_id: int):
     Analyze a VM for installed services, software, and configuration
     """
     logger.info(f"Starting analysis of VM {vm_id}")
-    
+
     db = SessionLocal()
-    
+
     try:
         vm = db.query(VirtualMachine).filter(VirtualMachine.id == vm_id).first()
         if not vm:
             raise ValueError(f"VM with id {vm_id} not found")
-        
+
         vm.status = VMStatus.ANALYZING
         db.commit()
-        
+
         # Simulate analysis (replace with actual WMI/PowerShell integration)
         self.update_state(
             state="PROGRESS",
-            meta={"current": 25, "total": 100, "status": "Scanning installed software..."}
+            meta={
+                "current": 25,
+                "total": 100,
+                "status": "Scanning installed software...",
+            },
         )
         time.sleep(2)
-        
+
         self.update_state(
             state="PROGRESS",
-            meta={"current": 50, "total": 100, "status": "Analyzing services..."}
+            meta={"current": 50, "total": 100, "status": "Analyzing services..."},
         )
         time.sleep(2)
-        
+
         self.update_state(
             state="PROGRESS",
-            meta={"current": 75, "total": 100, "status": "Generating report..."}
+            meta={"current": 75, "total": 100, "status": "Generating report..."},
         )
-        
+
         # Update VM with analysis results
         vm.installed_software = ["Microsoft .NET Framework 4.8", "Visual C++ Runtime"]
         vm.status = VMStatus.READY
         db.commit()
-        
-        return {
-            "status": "success",
-            "vm_id": vm_id,
-            "message": "VM analysis complete"
-        }
-        
+
+        return {"status": "success", "vm_id": vm_id, "message": "VM analysis complete"}
+
     except Exception as e:
         logger.error(f"VM analysis failed: {str(e)}")
         db.rollback()

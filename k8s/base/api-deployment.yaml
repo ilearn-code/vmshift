@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: vmshift-api
-          image: ghcr.io/YOUR_GITHUB_USERNAME/vmshift-api:latest
+          image: ghcr.io/ilearn-code/vmshift-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000

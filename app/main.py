@@ -2,16 +2,18 @@
 VMShift Demo - FastAPI Application
 Demonstrates VM discovery, migration workflows, and containerization logic
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-from sqlalchemy.orm import Session
+
 import logging
+from contextlib import asynccontextmanager
+
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import engine, get_db, Base
-from app.routers import vms, migrations, tasks, health
-from app.models import vm, migration
+from app.database import Base, engine, get_db
+from app.models import migration, vm
+from app.routers import health, migrations, tasks, vms
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,7 +44,7 @@ app = FastAPI(
     * **Container Generation** - Generate Dockerfiles and manifests
     """,
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -68,5 +70,5 @@ async def root():
         "application": "VMShift Demo API",
         "version": "1.0.0",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
     }

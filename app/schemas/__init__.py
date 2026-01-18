@@ -1,8 +1,6 @@
-from app.schemas.vm import (
-    VMBase, VMCreate, VMUpdate, VMResponse,
-    VMDiscoveryRequest, VMDiscoveryResponse
-)
-from app.schemas.migration import (
-    MigrationBase, MigrationCreate, MigrationUpdate, MigrationResponse,
-    MigrationArtifactsResponse, MigrationStartRequest, MigrationStartResponse
-)
+from app.schemas.migration import (MigrationArtifactsResponse, MigrationBase,
+                                   MigrationCreate, MigrationResponse,
+                                   MigrationStartRequest,
+                                   MigrationStartResponse, MigrationUpdate)
+from app.schemas.vm import (VMBase, VMCreate, VMDiscoveryRequest,
+                            VMDiscoveryResponse, VMResponse, VMUpdate)

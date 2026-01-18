@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: celery-worker
-          image: ghcr.io/YOUR_GITHUB_USERNAME/vmshift-celery:latest
+          image: ghcr.io/ilearn-code/vmshift-celery:latest
           imagePullPolicy: Always
           command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
           env:

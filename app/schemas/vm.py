@@ -1,14 +1,18 @@
 """
 Pydantic Schemas for Virtual Machines
 """
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
+
 from app.models.vm import VMStatus
 
 
 class VMBase(BaseModel):
     """Base VM schema"""
+
     name: str = Field(..., description="VM name")
     os_type: Optional[str] = Field(None, description="Operating system type")
     os_family: Optional[str] = Field(None, description="OS family: windows or linux")
@@ -20,6 +24,7 @@ class VMBase(BaseModel):
 
 class VMCreate(VMBase):
     """Schema for creating a VM"""
+
     uuid: str = Field(..., description="Unique VM identifier")
     datacenter: Optional[str] = None
     cluster: Optional[str] = None
@@ -31,6 +36,7 @@ class VMCreate(VMBase):
 
 class VMUpdate(BaseModel):
     """Schema for updating a VM"""
+
     name: Optional[str] = None
     status: Optional[VMStatus] = None
     discovered_services: Optional[List[str]] = None
@@ -39,6 +45,7 @@ class VMUpdate(BaseModel):
 
 class VMResponse(VMBase):
     """Schema for VM responses"""
+
     id: int
     uuid: str
     status: VMStatus
@@ -58,6 +65,7 @@ class VMResponse(VMBase):
 
 class VMDiscoveryRequest(BaseModel):
     """Request to discover VMs from hypervisor"""
+
     hypervisor_type: str = Field(default="vsphere", description="Hypervisor type")
     host: str = Field(..., description="Hypervisor host address")
     username: str = Field(..., description="Username for authentication")
@@ -67,6 +75,7 @@ class VMDiscoveryRequest(BaseModel):
 
 class VMDiscoveryResponse(BaseModel):
     """Response from VM discovery task"""
+
     task_id: str
     status: str
     message: str

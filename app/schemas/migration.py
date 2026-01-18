@@ -1,14 +1,18 @@
 """
 Pydantic Schemas for Migrations
 """
-from pydantic import BaseModel, Field
-from typing import Optional
+
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
 from app.models.migration import MigrationStatus, TargetPlatform
 
 
 class MigrationBase(BaseModel):
     """Base Migration schema"""
+
     name: str = Field(..., description="Migration name")
     target_platform: TargetPlatform = Field(default=TargetPlatform.KUBERNETES)
     target_namespace: str = Field(default="default")
@@ -16,6 +20,7 @@ class MigrationBase(BaseModel):
 
 class MigrationCreate(MigrationBase):
     """Schema for creating a migration"""
+
     vm_id: int = Field(..., description="ID of the VM to migrate")
     base_image: Optional[str] = Field(None, description="Base container image")
     container_port: Optional[int] = Field(None, description="Container port to expose")
@@ -27,6 +32,7 @@ class MigrationCreate(MigrationBase):
 
 class MigrationUpdate(BaseModel):
     """Schema for updating a migration"""
+
     status: Optional[MigrationStatus] = None
     progress_percent: Optional[int] = Field(None, ge=0, le=100)
     status_message: Optional[str] = None
@@ -35,6 +41,7 @@ class MigrationUpdate(BaseModel):
 
 class MigrationResponse(MigrationBase):
     """Schema for migration responses"""
+
     id: int
     vm_id: int
     status: MigrationStatus
@@ -59,6 +66,7 @@ class MigrationResponse(MigrationBase):
 
 class MigrationArtifactsResponse(BaseModel):
     """Response containing generated migration artifacts"""
+
     migration_id: int
     dockerfile: Optional[str]
     kubernetes_manifest: Optional[str]
@@ -67,11 +75,13 @@ class MigrationArtifactsResponse(BaseModel):
 
 class MigrationStartRequest(BaseModel):
     """Request to start a migration"""
+
     migration_id: int
 
 
 class MigrationStartResponse(BaseModel):
     """Response from starting a migration"""
+
     migration_id: int
     task_id: str
     status: str

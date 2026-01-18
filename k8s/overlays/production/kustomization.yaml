@@ -40,7 +40,7 @@ patches:
 
 # Production image tags
 images:
-  - name: ghcr.io/YOUR_GITHUB_USERNAME/vmshift-api
-    newTag: v1.0.0  # Use specific version in production
-  - name: ghcr.io/YOUR_GITHUB_USERNAME/vmshift-celery
-    newTag: v1.0.0
+  - name: ghcr.io/ilearn-code/vmshift-api
+    newTag: latest
+  - name: ghcr.io/ilearn-code/vmshift-celery
+    newTag: latest
