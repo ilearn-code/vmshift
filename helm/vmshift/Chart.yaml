@@ -10,9 +10,9 @@ keywords:
   - vm-to-container
   - fastapi
   - celery
-home: https://github.com/YOUR_USERNAME/vmshift-demo
+home: https://github.com/ilearn-code/vmshift/
 sources:
-  - https://github.com/YOUR_USERNAME/vmshift-demo
+  - https://github.com/ilearn-code/vmshift/
 maintainers:
-  - name: Your Name
-    email: your.email@example.com
+  - name: Satyam Yadav
+    email: satyamyadavv931@gmail.com

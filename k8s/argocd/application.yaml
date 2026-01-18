@@ -13,7 +13,15 @@ spec:
   source:
     repoURL: https://github.com/ilearn-code/vmshift.git
     targetRevision: main
-    path: k8s/base
+    path: helm/vmshift
+    helm:
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: image.tag
+          value: latest
+        - name: ingress.enabled
+          value: "true"
     
   destination:
     server: https://kubernetes.default.svc

@@ -162,10 +162,10 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ==========================================
-  # Deploy to Akamai/Linode Kubernetes
+  # Deploy to Akamai/Linode Kubernetes with Helm
   # ==========================================
   deploy:
-    name: Deploy to LKE
+    name: Deploy to LKE with Helm
     runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -177,6 +177,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "v3.13.0"
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
@@ -196,7 +201,7 @@ jobs:
 
       - name: Create namespace if not exists
         run: |
-          kubectl apply -f k8s/base/namespace-secrets.yaml
+          kubectl create namespace vmshift --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create GitHub Container Registry secret
         run: |
@@ -207,40 +212,22 @@ jobs:
             --docker-password=${{ secrets.GHCR_PAT }} \
             -n vmshift
 
-      - name: Update image tags in manifests
+      - name: Deploy/Upgrade with Helm
         run: |
-          # Update API deployment with new image tag
-          sed -i "s|ghcr.io/ilearn-code/vmshift-api:latest|${{ env.REGISTRY }}/${{ env.API_IMAGE_NAME }}:${{ github.sha }}|g" k8s/base/api-deployment.yaml
-          
-          # Update Celery deployment with new image tag
-          sed -i "s|ghcr.io/ilearn-code/vmshift-celery:latest|${{ env.REGISTRY }}/${{ env.CELERY_IMAGE_NAME }}:${{ github.sha }}|g" k8s/base/celery-deployment.yaml
-
-      - name: Deploy Redis
-        run: |
-          kubectl apply -f k8s/base/redis-deployment.yaml
-
-      - name: Deploy API
-        run: |
-          kubectl apply -f k8s/base/api-deployment.yaml
-
-      - name: Deploy Celery workers
-        run: |
-          kubectl apply -f k8s/base/celery-deployment.yaml
-
-      - name: Deploy HPA
-        run: |
-          kubectl apply -f k8s/base/hpa.yaml
-
-      - name: Wait for deployment rollout
-        run: |
-          kubectl rollout status deployment/vmshift-api -n vmshift --timeout=300s
-          kubectl rollout status deployment/vmshift-celery-worker -n vmshift --timeout=300s
+          helm upgrade --install vmshift ./helm/vmshift \
+            --namespace vmshift \
+            --set image.tag=${{ github.sha }} \
+            --set image.pullPolicy=Always \
+            --wait \
+            --timeout 10m \
+            --debug
 
       - name: Verify deployment
         run: |
           kubectl get pods -n vmshift
           kubectl get services -n vmshift
           kubectl get ingress -n vmshift
+          helm list -n vmshift
 
       - name: Health check
         run: |

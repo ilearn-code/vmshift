@@ -111,20 +111,20 @@ postgresql:
 
 # Ingress settings
 ingress:
-  enabled: false
+  enabled: true
   className: nginx
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
-    - host: vmshift.example.com
+    - host: vmshift.satyamay.tech
       paths:
         - path: /
           pathType: Prefix
   tls:
     - secretName: vmshift-tls
       hosts:
-        - vmshift.example.com
+        - vmshift.satyamay.tech
 
 # Environment variables
 env:
