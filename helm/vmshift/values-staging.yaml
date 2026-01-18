@@ -1,0 +1,91 @@
+# Staging Environment Configuration
+
+environment: staging
+
+image:
+  registry: ghcr.io
+  repository: ilearn-code/vmshift
+  tag: latest
+  pullPolicy: Always
+
+replicaCount:
+  api: 2
+  worker: 2
+  beat: 1
+
+resources:
+  api:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  worker:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+autoscaling:
+  enabled: true
+  api:
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  worker:
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+postgresql:
+  enabled: true
+  image:
+    tag: "16-alpine"
+  persistence:
+    size: 10Gi
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  database: vmshift_staging
+  username: vmshift_staging_user
+  # Password should be in secrets
+
+redis:
+  enabled: true
+  persistence:
+    size: 5Gi
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+  hosts:
+    - host: vmshift-staging.satyamay.tech
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: vmshift-staging-tls
+      hosts:
+        - vmshift-staging.satyamay.tech
+
+# Staging-specific settings
+debug: false
+logLevel: INFO
+celeryLogLevel: INFO

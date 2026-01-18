@@ -1,14 +1,28 @@
 # VMShift CI/CD Pipeline
 # Builds, tests, and deploys to Akamai/Linode Kubernetes Engine
+# Supports multiple environments: dev, staging, production
 
 name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: 
+      - main        # Triggers production deployment
+      - develop     # Triggers staging deployment
+      - 'feature/*' # Triggers dev deployment
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+        default: 'dev'
 
 env:
   REGISTRY: ghcr.io
@@ -89,13 +103,43 @@ jobs:
       #     fail_ci_if_error: false
 
   # ==========================================
+  # Determine target environment
+  # ==========================================
+  determine-environment:
+    name: Determine Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      namespace: ${{ steps.set-env.outputs.namespace }}
+      values-file: ${{ steps.set-env.outputs.values-file }}
+    
+    steps:
+      - name: Set environment based on branch or input
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            ENV="production"
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            ENV="staging"
+          else
+            ENV="dev"
+          fi
+          
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "namespace=vmshift-$ENV" >> $GITHUB_OUTPUT
+          echo "values-file=values-$ENV.yaml" >> $GITHUB_OUTPUT
+          echo "🎯 Deploying to: $ENV"
+
+  # ==========================================
   # Build and Push Docker Images
   # ==========================================
   build:
     name: Build & Push Images
     runs-on: ubuntu-latest
     # needs: test  # Temporarily removed - tests disabled
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     
     permissions:
       contents: read
@@ -164,15 +208,17 @@ jobs:
   # ==========================================
   # Deploy to Akamai/Linode Kubernetes with Helm
   # ==========================================
+  # Deploy to Environment
+  # ==========================================
   deploy:
-    name: Deploy to LKE with Helm
+    name: Deploy to ${{ needs.determine-environment.outputs.environment }}
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [determine-environment, build]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     
     environment:
-      name: production
-      url: https://vmshift.satyamay.tech
+      name: ${{ needs.determine-environment.outputs.environment }}
+      url: https://${{ needs.determine-environment.outputs.environment == 'production' && 'vmshift.satyamay.tech' || format('vmshift-{0}.satyamay.tech', needs.determine-environment.outputs.environment) }}
 
     steps:
       - name: Checkout code
@@ -201,21 +247,40 @@ jobs:
 
       - name: Create namespace if not exists
         run: |
-          kubectl create namespace vmshift --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace ${{ needs.determine-environment.outputs.namespace }} --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create GitHub Container Registry secret
         run: |
-          kubectl delete secret ghcr-secret -n vmshift --ignore-not-found
+          kubectl delete secret ghcr-secret -n ${{ needs.determine-environment.outputs.namespace }} --ignore-not-found
           kubectl create secret docker-registry ghcr-secret \
             --docker-server=ghcr.io \
             --docker-username=${{ github.actor }} \
             --docker-password=${{ secrets.GHCR_PAT }} \
-            -n vmshift
+            -n ${{ needs.determine-environment.outputs.namespace }}
+
+      - name: Create database secrets for ${{ needs.determine-environment.outputs.environment }}
+        run: |
+          ENV=${{ needs.determine-environment.outputs.environment }}
+          
+          # Generate environment-specific database credentials
+          DB_NAME="vmshift_${ENV}"
+          DB_USER="vmshift_${ENV}_user"
+          DB_PASSWORD="${{ secrets[format('DB_PASSWORD_{0}', needs.determine-environment.outputs.environment)] || 'vmshift_password_2024' }}"
+          
+          # Create secrets
+          kubectl delete secret vmshift-secrets -n ${{ needs.determine-environment.outputs.namespace }} --ignore-not-found
+          kubectl create secret generic vmshift-secrets \
+            --from-literal=database-url="postgresql://${DB_USER}:${DB_PASSWORD}@postgresql:5432/${DB_NAME}" \
+            --from-literal=redis-url="redis://redis:6379/0" \
+            --from-literal=celery-broker="redis://redis:6379/0" \
+            --from-literal=celery-backend="redis://redis:6379/0" \
+            -n ${{ needs.determine-environment.outputs.namespace }}
 
       - name: Deploy/Upgrade with Helm
         run: |
-          helm upgrade --install vmshift ./helm/vmshift \
-            --namespace vmshift \
+          helm upgrade --install vmshift-${{ needs.determine-environment.outputs.environment }} ./helm/vmshift \
+            --namespace ${{ needs.determine-environment.outputs.namespace }} \
+            --values ./helm/vmshift/${{ needs.determine-environment.outputs.values-file }} \
             --set image.tag=${{ github.sha }} \
             --set image.pullPolicy=Always \
             --wait \
@@ -223,6 +288,24 @@ jobs:
             --debug
 
       - name: Verify deployment
+        run: |
+          kubectl get pods -n ${{ needs.determine-environment.outputs.namespace }}
+          kubectl get svc -n ${{ needs.determine-environment.outputs.namespace }}
+          kubectl get ingress -n ${{ needs.determine-environment.outputs.namespace }}
+
+      - name: Check pod health
+        run: |
+          kubectl wait --for=condition=ready pod \
+            -l app=vmshift-api \
+            -n ${{ needs.determine-environment.outputs.namespace }} \
+            --timeout=300s || true
+
+      - name: Display deployment info
+        run: |
+          echo "🎉 Deployment to ${{ needs.determine-environment.outputs.environment }} complete!"
+          echo "📍 Namespace: ${{ needs.determine-environment.outputs.namespace }}"
+          echo "🏷️  Image Tag: ${{ github.sha }}"
+          echo "🌐 URL: https://${{ needs.determine-environment.outputs.environment == 'production' && 'vmshift.satyamay.tech' || format('vmshift-{0}.satyamay.tech', needs.determine-environment.outputs.environment) }}"
         run: |
           kubectl get pods -n vmshift
           kubectl get services -n vmshift

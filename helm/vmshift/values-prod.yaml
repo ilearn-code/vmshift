@@ -1,0 +1,101 @@
+# Production Environment Configuration
+
+environment: production
+
+image:
+  registry: ghcr.io
+  repository: ilearn-code/vmshift
+  tag: latest  # Should be overridden with specific version tag in prod
+  pullPolicy: IfNotPresent  # Don't always pull in production
+
+replicaCount:
+  api: 3
+  worker: 3
+  beat: 1
+
+resources:
+  api:
+    requests:
+      memory: "1Gi"
+      cpu: "1000m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  worker:
+    requests:
+      memory: "1Gi"
+      cpu: "1000m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+autoscaling:
+  enabled: true
+  api:
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  worker:
+    minReplicas: 3
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+postgresql:
+  enabled: true
+  image:
+    tag: "16-alpine"
+  persistence:
+    size: 20Gi
+    storageClass: linode-block-storage-retain
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "1000m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  database: vmshift_prod
+  username: vmshift_prod_user
+  # Password should be in secrets
+  # Consider using external managed PostgreSQL for production
+
+redis:
+  enabled: true
+  persistence:
+    size: 10Gi
+    storageClass: linode-block-storage-retain
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "400m"
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: vmshift.satyamay.tech
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: vmshift-tls
+      hosts:
+        - vmshift.satyamay.tech
+
+# Production-specific settings
+debug: false
+logLevel: WARNING
+celeryLogLevel: WARNING
+
+# Production pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

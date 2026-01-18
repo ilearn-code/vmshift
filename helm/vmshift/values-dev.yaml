@@ -1,0 +1,82 @@
+# Development Environment Configuration
+
+environment: dev
+
+image:
+  registry: ghcr.io
+  repository: ilearn-code/vmshift
+  tag: latest
+  pullPolicy: Always
+
+replicaCount:
+  api: 1
+  worker: 1
+  beat: 1
+
+resources:
+  api:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  worker:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+autoscaling:
+  enabled: false  # Disable autoscaling in dev
+
+postgresql:
+  enabled: true
+  image:
+    tag: "16-alpine"
+  persistence:
+    size: 5Gi  # Smaller storage for dev
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  database: vmshift_dev
+  username: vmshift_dev_user
+  # Password should be in secrets
+
+redis:
+  enabled: true
+  persistence:
+    size: 2Gi  # Smaller storage for dev
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "100m"
+    limits:
+      memory: "128Mi"
+      cpu: "200m"
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"  # Use staging for dev
+  hosts:
+    - host: vmshift-dev.satyamay.tech
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: vmshift-dev-tls
+      hosts:
+        - vmshift-dev.satyamay.tech
+
+# Dev-specific settings
+debug: true
+logLevel: DEBUG
+celeryLogLevel: DEBUG
