@@ -98,14 +98,14 @@ redis:
         cpu: 100m
         memory: 128Mi
 
-# PostgreSQL settings (external)
+# PostgreSQL settings (internal for demo/testing)
 postgresql:
-  enabled: false
+  enabled: true
   external:
     host: ""
     port: 5432
     database: vmshift
-    username: linpostgres
+    username: vmshift_user
     existingSecret: vmshift-secrets
     existingSecretKey: database-url
 
