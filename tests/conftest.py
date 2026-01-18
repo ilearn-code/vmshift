@@ -10,12 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
-from app.main import app
-
-# Import models so they're registered with Base
-# Must import from model modules directly
-from app.models.migration import Migration  # noqa: F401
-from app.models.vm import VirtualMachine  # noqa: F401
+from app.main import app  # This imports the models
 
 # Use test database from environment or SQLite in-memory as fallback
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///:memory:")
