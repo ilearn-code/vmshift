@@ -34,7 +34,7 @@ spec:
       project: default
       
       source:
-        repoURL: https://github.com/YOUR_GITHUB_USERNAME/vmshift-demo.git
+        repoURL: https://github.com/ilearn-code/vmshift-demo.git
         targetRevision: '{{branch}}'
         path: k8s
         
@@ -65,7 +65,7 @@ spec:
   project: default
   
   source:
-    repoURL: https://github.com/YOUR_GITHUB_USERNAME/vmshift-demo.git
+    repoURL: https://github.com/ilearn-code/vmshift-demo.git
     targetRevision: main
     path: k8s/overlays/production
   

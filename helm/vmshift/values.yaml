@@ -9,7 +9,7 @@ global:
 # Image settings
 image:
   registry: ghcr.io
-  repository: YOUR_GITHUB_USERNAME/vmshift
+  repository: ilearn-code/vmshift
   pullPolicy: IfNotPresent
   tag: "latest"
 

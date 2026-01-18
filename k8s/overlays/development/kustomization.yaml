@@ -45,9 +45,9 @@ patches:
 
 # Development image tags (latest for dev)
 images:
-  - name: ghcr.io/YOUR_GITHUB_USERNAME/vmshift-api
+  - name: ghcr.io/ilearn-code/vmshift-api
     newTag: latest
-  - name: ghcr.io/YOUR_GITHUB_USERNAME/vmshift-celery
+  - name: ghcr.io/ilearn-code/vmshift-celery
     newTag: latest
 
 # Development ConfigMap

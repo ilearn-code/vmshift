@@ -210,10 +210,10 @@ jobs:
       - name: Update image tags in manifests
         run: |
           # Update API deployment with new image tag
-          sed -i "s|ghcr.io/YOUR_GITHUB_USERNAME/vmshift-api:latest|${{ env.REGISTRY }}/${{ env.API_IMAGE_NAME }}:${{ github.sha }}|g" k8s/base/api-deployment.yaml
+          sed -i "s|ghcr.io/ilearn-code/vmshift-api:latest|${{ env.REGISTRY }}/${{ env.API_IMAGE_NAME }}:${{ github.sha }}|g" k8s/base/api-deployment.yaml
           
           # Update Celery deployment with new image tag
-          sed -i "s|ghcr.io/YOUR_GITHUB_USERNAME/vmshift-celery:latest|${{ env.REGISTRY }}/${{ env.CELERY_IMAGE_NAME }}:${{ github.sha }}|g" k8s/base/celery-deployment.yaml
+          sed -i "s|ghcr.io/ilearn-code/vmshift-celery:latest|${{ env.REGISTRY }}/${{ env.CELERY_IMAGE_NAME }}:${{ github.sha }}|g" k8s/base/celery-deployment.yaml
 
       - name: Deploy Redis
         run: |

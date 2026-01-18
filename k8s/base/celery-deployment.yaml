@@ -76,7 +76,7 @@ spec:
     spec:
       containers:
         - name: celery-beat
-          image: ghcr.io/YOUR_GITHUB_USERNAME/vmshift-celery:latest
+          image: ghcr.io/ilearn-code/vmshift-celery:latest
           imagePullPolicy: Always
           command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
           env:
