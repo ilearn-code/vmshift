@@ -72,12 +72,6 @@ jobs:
           # black --check app
           # isort --check-only app
 
-      - name: Create database tables
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/vmshift_test
-        run: |
-          python -c "from app.database import Base, engine; Base.metadata.create_all(bind=engine)"
-
       - name: Run tests
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/vmshift_test
