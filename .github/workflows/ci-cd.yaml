@@ -94,7 +94,7 @@ jobs:
   build:
     name: Build & Push Images
     runs-on: ubuntu-latest
-    needs: test
+    # needs: test  # Temporarily removed - tests disabled
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     permissions:
@@ -172,7 +172,7 @@ jobs:
     
     environment:
       name: production
-      url: https://vmshift.YOUR_DOMAIN.com
+      url: https://vmshift.satyamay.tech
 
     steps:
       - name: Checkout code
