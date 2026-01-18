@@ -1,0 +1,116 @@
+# VMShift Demo API - Kubernetes Deployment
+# For Akamai/Linode Kubernetes Engine (LKE)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vmshift-api
+  namespace: vmshift
+  labels:
+    app: vmshift-api
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vmshift-api
+  template:
+    metadata:
+      labels:
+        app: vmshift-api
+        tier: backend
+    spec:
+      containers:
+        - name: vmshift-api
+          image: ghcr.io/YOUR_GITHUB_USERNAME/vmshift-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vmshift-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vmshift-secrets
+                  key: redis-url
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vmshift-secrets
+                  key: celery-broker-url
+            - name: CELERY_RESULT_BACKEND
+              valueFrom:
+                secretKeyRef:
+                  name: vmshift-secrets
+                  key: celery-result-backend
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      imagePullSecrets:
+        - name: ghcr-secret
+---
+# API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmshift-api-service
+  namespace: vmshift
+spec:
+  selector:
+    app: vmshift-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: ClusterIP
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vmshift-ingress
+  namespace: vmshift
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - vmshift.YOUR_DOMAIN.com
+      secretName: vmshift-tls
+  rules:
+    - host: vmshift.YOUR_DOMAIN.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vmshift-api-service
+                port:
+                  number: 80

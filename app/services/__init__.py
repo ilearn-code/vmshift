@@ -1,0 +1,1 @@
+from app.services.artifact_generator import ArtifactGenerator

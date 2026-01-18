@@ -1,0 +1,169 @@
+# Default values for vmshift
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global settings
+global:
+  namespace: vmshift
+
+# Image settings
+image:
+  registry: ghcr.io
+  repository: YOUR_GITHUB_USERNAME/vmshift
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets:
+  - name: ghcr-secret
+
+# API settings
+api:
+  name: vmshift-api
+  replicaCount: 2
+  
+  image:
+    name: vmshift-api
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Celery Worker settings
+celery:
+  worker:
+    name: vmshift-celery-worker
+    replicaCount: 2
+    
+    image:
+      name: vmshift-celery
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+  
+  beat:
+    name: vmshift-celery-beat
+    replicaCount: 1
+    
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+# Redis settings
+redis:
+  enabled: true
+  architecture: standalone
+  
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: linode-block-storage-retain
+    
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+# PostgreSQL settings (external)
+postgresql:
+  enabled: false
+  external:
+    host: ""
+    port: 5432
+    database: vmshift
+    username: linpostgres
+    existingSecret: vmshift-secrets
+    existingSecretKey: database-url
+
+# Ingress settings
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: vmshift.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: vmshift-tls
+      hosts:
+        - vmshift.example.com
+
+# Environment variables
+env:
+  DEBUG: "false"
+  LOG_LEVEL: "INFO"
+
+# Secrets (create separately or use existing)
+secrets:
+  existingSecret: vmshift-secrets
+  createSecret: false
+  data:
+    DATABASE_URL: ""
+    REDIS_URL: "redis://redis:6379/0"
+    CELERY_BROKER_URL: "redis://redis:6379/0"
+    CELERY_RESULT_BACKEND: "redis://redis:6379/1"
+
+# ServiceAccount
+serviceAccount:
+  create: true
+  name: vmshift
+
+# Security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

@@ -1,0 +1,69 @@
+# ArgoCD Image Updater Workflow
+# Updates image tags in Git when new images are pushed
+# Works with ArgoCD for full GitOps
+
+name: ArgoCD Image Update
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types:
+      - completed
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  API_IMAGE_NAME: ${{ github.repository }}-api
+  CELERY_IMAGE_NAME: ${{ github.repository }}-celery
+
+jobs:
+  update-manifests:
+    name: Update K8s Manifests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Update image tags in Kustomization
+        run: |
+          # Get the short SHA
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          
+          # Update production kustomization with new image tag
+          cd k8s/overlays/production
+          
+          # Use sed to update the image tags
+          sed -i "s/newTag: .*/newTag: ${SHORT_SHA}/g" kustomization.yaml
+          
+          echo "Updated image tags to: ${SHORT_SHA}"
+          cat kustomization.yaml
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Check if there are changes
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          git add k8s/overlays/production/kustomization.yaml
+          git commit -m "chore: update image tags to ${{ github.sha }}"
+          git push
+
+      - name: Trigger ArgoCD Sync (optional)
+        if: false  # Enable if you have ArgoCD API access
+        run: |
+          # This would trigger an ArgoCD sync via API
+          # Requires ARGOCD_AUTH_TOKEN secret
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.ARGOCD_AUTH_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "https://argocd.YOUR_DOMAIN.com/api/v1/applications/vmshift-prod/sync"

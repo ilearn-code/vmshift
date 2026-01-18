@@ -1,0 +1,59 @@
+# Kustomize overlay for Development environment
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: vmshift-development
+
+# Inherit from base
+resources:
+  - ../../base
+
+# Development namespace
+namespace: vmshift-dev
+
+# Development-specific labels
+labels:
+  - pairs:
+      environment: development
+
+# Smaller replicas for dev
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: vmshift-api
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: vmshift-celery-worker
+  # Remove HPA in dev
+  - patch: |-
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: vmshift-api-hpa
+    target:
+      kind: HorizontalPodAutoscaler
+
+# Development image tags (latest for dev)
+images:
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/vmshift-api
+    newTag: latest
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/vmshift-celery
+    newTag: latest
+
+# Development ConfigMap
+configMapGenerator:
+  - name: vmshift-config
+    behavior: merge
+    literals:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
