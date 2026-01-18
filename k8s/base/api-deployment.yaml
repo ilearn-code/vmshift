@@ -101,10 +101,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - vmshift.YOUR_DOMAIN.com
+        - vmshift.satyamay.tech
       secretName: vmshift-tls
   rules:
-    - host: vmshift.YOUR_DOMAIN.com
+    - host: vmshift.satyamay.tech
       http:
         paths:
           - path: /
