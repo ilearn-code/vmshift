@@ -28,8 +28,14 @@ async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
     logger.info("Starting VMShift Demo Application...")
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables created/verified")
+    try:
+        # Create tables in a thread pool to avoid blocking
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: Base.metadata.create_all(bind=engine))
+        logger.info("Database tables created/verified")
+    except Exception as e:
+        logger.warning(f"Could not create database tables: {e}")
     yield
     # Shutdown
     logger.info("Shutting down VMShift Demo Application...")
