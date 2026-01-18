@@ -111,42 +111,605 @@ curl -X POST http://localhost:8000/api/v1/migrations/1/generate-artifacts
 curl -X POST http://localhost:8000/api/v1/migrations/1/start
 ```
 
-## ☁️ Deploy to Akamai Cloud (LKE)
+## ☁️ Deploy to Akamai Cloud (LKE) - Complete Guide
 
-### Deployment Options
+This guide shows you how to deploy the complete application stack to Akamai Cloud using Infrastructure as Code (Terraform), GitOps (ArgoCD), and Helm charts.
 
-Choose your preferred deployment method:
-- **Option 1**: [Terraform (IaC)](#option-1-terraform-iac-recommended) - Fully automated infrastructure provisioning
-- **Option 2**: [Manual Setup](#option-2-manual-setup) - Step-by-step using Linode Console
-- **Option 3**: [Helm Charts](#option-3-helm-charts) - Kubernetes package manager
+### 📸 Deployment Overview
+
+![Architecture Diagram](./docs/screenshots/architecture.png)
+*Complete deployment architecture on Akamai Cloud*
 
 ---
 
-### Option 1: Terraform (IaC) - Recommended
+## 🛠️ Step-by-Step Deployment
 
-**Provisions everything in one command!**
+### Step 1: Prerequisites Setup
 
+#### 1.1 Create Akamai Cloud Account
+1. Sign up at [https://cloud.linode.com](https://cloud.linode.com)
+2. Activate your **$100 free credit**
+3. Navigate to **Profile** → **API Tokens**
+4. Create a new token with **Read/Write** access
+
+![Akamai API Token](./docs/screenshots/01-akamai-api-token.png)
+*Creating API token in Akamai Cloud Console*
+
+#### 1.2 Fork the Repository
 ```bash
-# 1. Get Linode API token from https://cloud.linode.com/profile/tokens
+# Fork this repo to your GitHub account
+# Then clone your fork
+git clone https://github.com/YOUR_USERNAME/vmshift.git
+cd vmshift
+```
+
+#### 1.3 Install Required Tools
+```bash
+# Install Terraform
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt-get update && sudo apt-get install terraform
+
+# Install kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# Install Helm
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Install GitHub CLI
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt update && sudo apt install gh
+
+# Authenticate with GitHub
+gh auth login
+```
+
+---
+
+### Step 2: Infrastructure Provisioning with Terraform
+
+#### 2.1 Configure Terraform Variables
+```bash
 cd terraform
 
-# 2. Configure variables
+# Create variables file
 cp terraform.tfvars.example terraform.tfvars
-nano terraform.tfvars  # Add your LINODE_TOKEN
 
-# 3. Deploy everything!
+# Edit with your values
+nano terraform.tfvars
+```
+
+**terraform.tfvars content:**
+```hcl
+linode_token = "YOUR_LINODE_API_TOKEN"
+cluster_name = "vmshift-cluster"
+region       = "us-east"  # or your preferred region
+node_count   = 3
+node_type    = "g6-standard-2"  # 2 vCPUs, 4GB RAM
+```
+
+![Terraform Configuration](./docs/screenshots/02-terraform-config.png)
+*Terraform variables configuration*
+
+#### 2.2 Deploy Infrastructure
+```bash
+# Initialize Terraform
 terraform init
-terraform plan
-terraform apply  # Type 'yes'
 
-# ✅ This creates:
-#   - LKE Cluster (3 nodes)
-#   - PostgreSQL Database (managed)
-#   - ArgoCD (GitOps)
-#   - Cert-Manager (SSL)
-#   - NGINX Ingress
-#   - Prometheus & Grafana (monitoring)
-#   - All Kubernetes resources
+# Review the plan
+terraform plan
+
+# Apply configuration (creates all resources)
+terraform apply
+```
+
+**What gets created:**
+- ✅ **LKE Cluster** - 3-node Kubernetes cluster (v1.34.3)
+- ✅ **PostgreSQL Database** - Managed PostgreSQL 16 instance (deployed in-cluster for reliability)
+- ✅ **ArgoCD** - GitOps continuous deployment
+- ✅ **NGINX Ingress Controller** - Load balancer with SSL
+- ✅ **Cert-Manager** - Automatic SSL certificate management
+- ✅ **Prometheus & Grafana** - Monitoring and observability
+- ✅ **Redis** - Message broker for Celery
+
+![Terraform Apply](./docs/screenshots/03-terraform-apply.png)
+*Terraform applying infrastructure changes*
+
+#### 2.3 Save Outputs
+```bash
+# Save important outputs
+terraform output -raw kubeconfig > ~/.kube/config
+terraform output -raw argocd_password > argocd-password.txt
+terraform output -raw grafana_password > grafana-password.txt
+
+# Test cluster access
+kubectl cluster-info
+kubectl get nodes
+```
+
+![Cluster Info](./docs/screenshots/04-cluster-info.png)
+*Kubernetes cluster running on Akamai Cloud*
+
+---
+
+### Step 3: Configure GitHub Secrets for CI/CD
+
+#### 3.1 Get KUBECONFIG
+```bash
+# Get base64 encoded kubeconfig
+cat ~/.kube/config | base64 -w 0
+```
+
+#### 3.2 Get ArgoCD Auth Token
+```bash
+# Port-forward to ArgoCD
+kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+
+# Login to ArgoCD
+argocd login localhost:8080 --username admin --password $(cat argocd-password.txt) --insecure
+
+# Generate auth token
+argocd account generate-token --account admin
+```
+
+#### 3.3 Generate GitHub Container Registry Token
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Click **Generate new token (classic)**
+3. Select scopes: `write:packages`, `read:packages`, `delete:packages`
+4. Copy the token
+
+![GitHub PAT](./docs/screenshots/05-github-pat.png)
+*Creating GitHub Personal Access Token*
+
+#### 3.4 Add Secrets to GitHub Repository
+1. Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions**
+2. Add three secrets:
+
+| Secret Name | Value | Description |
+|-------------|-------|-------------|
+| `KUBECONFIG` | Base64 kubeconfig from step 3.1 | Kubernetes access |
+| `ARGOCD_AUTH_TOKEN` | Token from step 3.2 | ArgoCD CLI access |
+| `GHCR_PAT` | Token from step 3.3 | GitHub Container Registry |
+
+![GitHub Secrets](./docs/screenshots/06-github-secrets.png)
+*GitHub Actions secrets configuration*
+
+---
+
+### Step 4: Deploy Application with Helm
+
+#### 4.1 Configure Helm Values
+```bash
+# Edit Helm values
+nano helm/vmshift/values.yaml
+```
+
+**Key configurations to update:**
+```yaml
+image:
+  registry: ghcr.io
+  repository: YOUR_GITHUB_USERNAME/vmshift
+  tag: latest
+  pullPolicy: Always
+
+ingress:
+  enabled: true
+  hosts:
+    - host: vmshift.yourdomain.com  # Update with your domain
+      paths:
+        - path: /
+          pathType: Prefix
+
+postgresql:
+  enabled: true  # Use in-cluster PostgreSQL
+  persistence:
+    size: 10Gi
+```
+
+![Helm Values](./docs/screenshots/07-helm-values.png)
+*Helm chart configuration*
+
+#### 4.2 Make GitHub Packages Public
+1. Go to your GitHub profile → **Packages**
+2. Click on `vmshift-api` package
+3. Go to **Package settings**
+4. Scroll to **Danger Zone** → Click **Change visibility**
+5. Select **Public** and confirm
+6. Repeat for `vmshift-celery` package
+
+![GitHub Packages](./docs/screenshots/08-github-packages.png)
+*Making GitHub Container Registry packages public*
+
+#### 4.3 Fix Existing Resources for Helm
+```bash
+# Add Helm labels/annotations to existing PVC
+kubectl annotate pvc postgresql-pvc -n vmshift \
+  meta.helm.sh/release-name=vmshift \
+  meta.helm.sh/release-namespace=vmshift --overwrite
+
+kubectl label pvc postgresql-pvc -n vmshift \
+  app.kubernetes.io/managed-by=Helm --overwrite
+```
+
+#### 4.4 Deploy with Helm
+```bash
+# Create namespace
+kubectl create namespace vmshift
+
+# Create image pull secret for GHCR
+kubectl create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username=YOUR_GITHUB_USERNAME \
+  --docker-password=YOUR_GITHUB_PAT \
+  -n vmshift
+
+# Install/upgrade with Helm
+helm upgrade --install vmshift ./helm/vmshift \
+  --namespace vmshift \
+  --set image.tag=latest \
+  --debug
+```
+
+![Helm Install](./docs/screenshots/09-helm-install.png)
+*Deploying application with Helm*
+
+---
+
+### Step 5: Trigger CI/CD Pipeline
+
+#### 5.1 Push Code Changes
+```bash
+# Make any change to trigger CI/CD
+git add .
+git commit -m "Deploy to Akamai Cloud"
+git push origin main
+```
+
+#### 5.2 Monitor GitHub Actions
+1. Go to your GitHub repository → **Actions** tab
+2. Watch the **CI/CD Pipeline** workflow
+3. It will:
+   - Build Docker images for API and Celery
+   - Push images to GitHub Container Registry
+   - Update Helm deployment
+   - Sync with ArgoCD
+
+![GitHub Actions](./docs/screenshots/10-github-actions.png)
+*CI/CD pipeline running in GitHub Actions*
+
+#### 5.3 Verify Workflow Success
+```bash
+# Check workflow status from CLI
+gh run list --workflow=ci-cd.yaml --limit 5
+
+# Watch specific run
+gh run watch <RUN_ID>
+```
+
+---
+
+### Step 6: Verify Deployment
+
+#### 6.1 Check Pod Status
+```bash
+# Check all pods in vmshift namespace
+kubectl get pods -n vmshift
+
+# Expected output:
+# NAME                                     READY   STATUS    RESTARTS   AGE
+# postgresql-xxxxxxxxxx-xxxxx              1/1     Running   0          5m
+# redis-xxxxxxxxxx-xxxxx                   1/1     Running   0          5m
+# vmshift-api-xxxxxxxxxx-xxxxx             1/1     Running   0          3m
+# vmshift-api-xxxxxxxxxx-xxxxx             1/1     Running   0          3m
+# vmshift-celery-worker-xxxxxx-xxxxx       1/1     Running   0          3m
+# vmshift-celery-worker-xxxxxx-xxxxx       1/1     Running   0          3m
+# vmshift-celery-beat-xxxxxxxxx-xxxxx      1/1     Running   0          3m
+```
+
+![Pod Status](./docs/screenshots/11-pod-status.png)
+*All application pods running successfully*
+
+#### 6.2 Check Services and Ingress
+```bash
+# Get services
+kubectl get svc -n vmshift
+
+# Get ingress
+kubectl get ingress -n vmshift
+
+# Note the EXTERNAL-IP (e.g., 143.42.224.166)
+```
+
+![Services](./docs/screenshots/12-services-ingress.png)
+*Kubernetes services and ingress configuration*
+
+#### 6.3 Test Application Health
+```bash
+# Get ingress IP
+INGRESS_IP=$(kubectl get ingress vmshift-ingress -n vmshift -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+# Test health endpoint
+curl -k https://$INGRESS_IP/health -H "Host: vmshift.yourdomain.com"
+
+# Expected response:
+# {"status":"healthy","database":"connected","redis":"connected"}
+```
+
+---
+
+### Step 7: Access Monitoring & GitOps Dashboards
+
+#### 7.1 Access ArgoCD
+```bash
+# Get ArgoCD external IP
+ARGOCD_IP=$(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+echo "ArgoCD URL: http://$ARGOCD_IP"
+echo "Username: admin"
+echo "Password: $(cat argocd-password.txt)"
+
+# Or use port-forward
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+# Access at: http://localhost:8080
+```
+
+![ArgoCD Dashboard](./docs/screenshots/13-argocd-dashboard.png)
+*ArgoCD GitOps dashboard showing application sync status*
+
+#### 7.2 Access Grafana Monitoring
+```bash
+# Get Grafana external IP
+GRAFANA_IP=$(kubectl get svc grafana -n monitoring -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+echo "Grafana URL: http://$GRAFANA_IP"
+echo "Username: admin"
+echo "Password: $(cat grafana-password.txt)"
+```
+
+![Grafana Dashboard](./docs/screenshots/14-grafana-metrics.png)
+*Grafana showing application metrics and resource usage*
+
+#### 7.3 View Application Logs
+```bash
+# API logs
+kubectl logs -f deployment/vmshift-api -n vmshift
+
+# Celery worker logs
+kubectl logs -f deployment/vmshift-celery-worker -n vmshift
+
+# Follow all logs
+kubectl logs -f -l app=vmshift -n vmshift --all-containers=true
+```
+
+---
+
+### Step 8: Configure Domain (Optional)
+
+#### 8.1 Add DNS Record
+1. Get ingress IP: `kubectl get ingress -n vmshift`
+2. In your DNS provider (Cloudflare, GoDaddy, etc.):
+   - Add **A Record**: `vmshift` → `143.42.224.166` (your ingress IP)
+   - Or add **CNAME**: `vmshift` → `<ingress-hostname>`
+
+![DNS Configuration](./docs/screenshots/15-dns-config.png)
+*DNS A record pointing to Kubernetes ingress*
+
+#### 8.2 Wait for SSL Certificate
+```bash
+# Check certificate status
+kubectl get certificate -n vmshift
+
+# Wait for "Ready" status
+kubectl wait --for=condition=ready certificate/vmshift-tls -n vmshift --timeout=300s
+```
+
+#### 8.3 Access via Domain
+```bash
+# Test HTTPS access
+curl https://vmshift.yourdomain.com/health
+
+# Open in browser
+open https://vmshift.yourdomain.com/docs
+```
+
+![Application Live](./docs/screenshots/16-app-running.png)
+*Application running live with SSL certificate*
+
+---
+
+### Step 9: Test the Application
+
+#### 9.1 Access API Documentation
+Open `https://vmshift.yourdomain.com/docs` in your browser
+
+![API Docs](./docs/screenshots/17-api-docs.png)
+*Interactive API documentation with Swagger UI*
+
+#### 9.2 Create a Test VM
+```bash
+curl -X POST https://vmshift.yourdomain.com/api/v1/vms/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "web-server-01",
+    "uuid": "vm-001-prod",
+    "os_type": "Ubuntu 22.04",
+    "os_family": "linux",
+    "cpu_count": 4,
+    "memory_mb": 8192,
+    "disk_gb": 100
+  }'
+```
+
+![Create VM](./docs/screenshots/18-create-vm.png)
+*Creating a VM entry via API*
+
+#### 9.3 Create Migration Workflow
+```bash
+curl -X POST https://vmshift.yourdomain.com/api/v1/migrations/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Migrate Ubuntu Web Server",
+    "vm_id": 1,
+    "target_platform": "kubernetes",
+    "container_port": 80,
+    "environment": "production"
+  }'
+```
+
+#### 9.4 Generate Container Artifacts
+```bash
+# Generate Dockerfile, K8s manifests
+curl -X POST https://vmshift.yourdomain.com/api/v1/migrations/1/generate-artifacts
+
+# Check Celery task execution in logs
+kubectl logs -f deployment/vmshift-celery-worker -n vmshift
+```
+
+![Migration Progress](./docs/screenshots/19-migration-workflow.png)
+*Migration workflow in progress*
+
+---
+
+## 📊 Monitoring & Observability
+
+### View Application Metrics
+
+**Prometheus Queries:**
+```promql
+# API request rate
+rate(http_requests_total[5m])
+
+# Pod CPU usage
+container_cpu_usage_seconds_total{namespace="vmshift"}
+
+# Pod memory usage
+container_memory_usage_bytes{namespace="vmshift"}
+```
+
+**Grafana Dashboards:**
+- **Kubernetes Cluster** - Node metrics, resource usage
+- **Application Performance** - API latency, error rates
+- **Celery Workers** - Task queue depth, worker health
+
+![Prometheus Metrics](./docs/screenshots/20-prometheus-queries.png)
+*Prometheus metrics for application monitoring*
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### Issue 1: Pods Stuck in ImagePullBackOff
+```bash
+# Check image pull secrets
+kubectl get secrets -n vmshift
+
+# Recreate GHCR secret
+kubectl delete secret ghcr-secret -n vmshift
+kubectl create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username=YOUR_USERNAME \
+  --docker-password=YOUR_PAT \
+  -n vmshift
+
+# Restart deployment
+kubectl rollout restart deployment/vmshift-api -n vmshift
+```
+
+#### Issue 2: Worker Timeout During Startup
+```bash
+# Check API logs
+kubectl logs deployment/vmshift-api -n vmshift --tail=50
+
+# Increase resource limits in values.yaml
+api:
+  resources:
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+# Redeploy
+helm upgrade vmshift ./helm/vmshift -n vmshift
+```
+
+#### Issue 3: Database Connection Failed
+```bash
+# Check PostgreSQL pod
+kubectl get pods -n vmshift | grep postgresql
+
+# Check database logs
+kubectl logs deployment/postgresql -n vmshift
+
+# Test connection from API pod
+kubectl exec -it deployment/vmshift-api -n vmshift -- \
+  psql postgresql://vmshift_user:password@postgresql:5432/vmshift -c "SELECT 1;"
+```
+
+#### Issue 4: Helm Install Fails - PVC Ownership
+```bash
+# Add Helm labels to existing PVC
+kubectl annotate pvc postgresql-pvc -n vmshift \
+  meta.helm.sh/release-name=vmshift \
+  meta.helm.sh/release-namespace=vmshift --overwrite
+
+kubectl label pvc postgresql-pvc -n vmshift \
+  app.kubernetes.io/managed-by=Helm --overwrite
+```
+
+---
+
+## 🎯 Project Showcase Checklist
+
+Use this checklist when documenting your project:
+
+- [ ] Screenshot: Akamai Cloud Console showing cluster
+- [ ] Screenshot: Terraform apply output
+- [ ] Screenshot: GitHub Actions workflow success
+- [ ] Screenshot: ArgoCD showing synced applications
+- [ ] Screenshot: kubectl get pods showing all running
+- [ ] Screenshot: Grafana dashboard with metrics
+- [ ] Screenshot: API documentation (Swagger UI)
+- [ ] Screenshot: Successful API request/response
+- [ ] Screenshot: Celery worker processing tasks
+- [ ] Screenshot: Application accessible via domain with SSL
+- [ ] Diagram: Architecture overview
+- [ ] Diagram: CI/CD pipeline flow
+- [ ] Video: Quick demo of API functionality (optional)
+
+---
+
+## 💰 Cost Optimization
+
+**Monthly Cost Estimate (Akamai Cloud):**
+- LKE Cluster (3x g6-standard-2): ~$36/month
+- Block Storage (20Gi): ~$2/month
+- Bandwidth: Included (free)
+- **Total: ~$38/month** (covered by $100 free credit for 2+ months)
+
+**Free Tier Components:**
+- GitHub Actions: 2,000 minutes/month (free)
+- GitHub Container Registry: 500MB storage (free)
+- Let's Encrypt SSL: Free
+
+---
+
+## 🎓 What You'll Learn
+
+By deploying this project, you'll gain hands-on experience with:
+
+✅ **Infrastructure as Code (IaC)** - Terraform for cloud provisioning  
+✅ **Container Orchestration** - Kubernetes deployment and management  
+✅ **GitOps** - ArgoCD for declarative continuous deployment  
+✅ **CI/CD Pipelines** - GitHub Actions for automation  
+✅ **Package Management** - Helm charts for Kubernetes  
+✅ **Microservices** - FastAPI + Celery worker architecture  
+✅ **Observability** - Prometheus & Grafana monitoring  
+✅ **Cloud Platforms** - Akamai Cloud (Linode) LKE  
+✅ **Security** - SSL certificates, secrets management  
+✅ **Database Management** - PostgreSQL in Kubernetes
 
 # 4. Access your cluster
 export KUBECONFIG=$(pwd)/kubeconfig.yaml
