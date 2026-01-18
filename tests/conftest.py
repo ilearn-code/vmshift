@@ -1,6 +1,7 @@
 """
 Test configuration
 """
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -35,16 +36,18 @@ def db_session():
 @pytest.fixture(scope="function")
 def client(db_session):
     """Create a test client with overridden database dependency"""
+
     def override_get_db():
         try:
             yield db_session
         finally:
             pass
-    
+
     app.dependency_overrides[get_db] = override_get_db
-    
+
     from fastapi.testclient import TestClient
+
     with TestClient(app) as c:
         yield c
-    
+
     app.dependency_overrides.clear()
