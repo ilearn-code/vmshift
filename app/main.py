@@ -12,9 +12,11 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import Base, engine, get_db
+from app.routers import health, migrations, tasks, vms
+
+# Ensure models are registered by importing them explicitly
 from app.models.migration import Migration  # noqa: F401
 from app.models.vm import VirtualMachine  # noqa: F401
-from app.routers import health, migrations, tasks, vms
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
