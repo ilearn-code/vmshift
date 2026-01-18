@@ -196,7 +196,7 @@ jobs:
 
       - name: Create namespace if not exists
         run: |
-          kubectl apply -f k8s/namespace-secrets.yaml
+          kubectl apply -f k8s/base/namespace-secrets.yaml
 
       - name: Create GitHub Container Registry secret
         run: |
@@ -210,26 +210,26 @@ jobs:
       - name: Update image tags in manifests
         run: |
           # Update API deployment with new image tag
-          sed -i "s|ghcr.io/YOUR_GITHUB_USERNAME/vmshift-api:latest|${{ env.REGISTRY }}/${{ env.API_IMAGE_NAME }}:${{ github.sha }}|g" k8s/api-deployment.yaml
+          sed -i "s|ghcr.io/YOUR_GITHUB_USERNAME/vmshift-api:latest|${{ env.REGISTRY }}/${{ env.API_IMAGE_NAME }}:${{ github.sha }}|g" k8s/base/api-deployment.yaml
           
           # Update Celery deployment with new image tag
-          sed -i "s|ghcr.io/YOUR_GITHUB_USERNAME/vmshift-celery:latest|${{ env.REGISTRY }}/${{ env.CELERY_IMAGE_NAME }}:${{ github.sha }}|g" k8s/celery-deployment.yaml
+          sed -i "s|ghcr.io/YOUR_GITHUB_USERNAME/vmshift-celery:latest|${{ env.REGISTRY }}/${{ env.CELERY_IMAGE_NAME }}:${{ github.sha }}|g" k8s/base/celery-deployment.yaml
 
       - name: Deploy Redis
         run: |
-          kubectl apply -f k8s/redis-deployment.yaml
+          kubectl apply -f k8s/base/redis-deployment.yaml
 
       - name: Deploy API
         run: |
-          kubectl apply -f k8s/api-deployment.yaml
+          kubectl apply -f k8s/base/api-deployment.yaml
 
       - name: Deploy Celery workers
         run: |
-          kubectl apply -f k8s/celery-deployment.yaml
+          kubectl apply -f k8s/base/celery-deployment.yaml
 
       - name: Deploy HPA
         run: |
-          kubectl apply -f k8s/hpa.yaml
+          kubectl apply -f k8s/base/hpa.yaml
 
       - name: Wait for deployment rollout
         run: |
