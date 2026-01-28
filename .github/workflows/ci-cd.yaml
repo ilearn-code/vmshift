@@ -314,7 +314,8 @@ jobs:
             --set celery.image.tag=latest \
             --set imagePullSecrets[0].name=ghcr-secret \
             --wait \
-            --timeout 10m
+            --timeout 15m \
+            --debug
 
       - name: Verify deployment
         run: |
