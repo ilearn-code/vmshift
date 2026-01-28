@@ -8,8 +8,8 @@ metadata:
     {{- range $key, $value := .Values.ingress.annotations }}
     {{ $key }}: {{ $value | quote }}
     {{- end }}
-    kubernetes.io/ingress.class: {{ .Values.ingress.className }}
 spec:
+  ingressClassName: {{ .Values.ingress.className }}
   {{- if .Values.ingress.tls }}
   tls:
     {{- range .Values.ingress.tls }}
