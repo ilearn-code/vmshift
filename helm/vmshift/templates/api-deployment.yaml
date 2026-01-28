@@ -34,22 +34,22 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret }}
-                  key: database-url
+                  key: DATABASE_URL
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret }}
-                  key: redis-url
+                  key: REDIS_URL
             - name: CELERY_BROKER_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret }}
-                  key: celery-broker-url
+                  key: CELERY_BROKER_URL
             - name: CELERY_RESULT_BACKEND
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret }}
-                  key: celery-result-backend
+                  key: CELERY_RESULT_BACKEND
             - name: DEBUG
               value: {{ .Values.env.DEBUG | quote }}
             - name: LOG_LEVEL
