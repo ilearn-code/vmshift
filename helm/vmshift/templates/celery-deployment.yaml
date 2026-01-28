@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Values.celery.worker.name }}
-  namespace: {{ .Values.global.namespace }}
+  namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Values.celery.worker.name }}
     tier: worker
@@ -55,7 +55,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Values.celery.beat.name }}
-  namespace: {{ .Values.global.namespace }}
+  namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Values.celery.beat.name }}
     tier: scheduler
