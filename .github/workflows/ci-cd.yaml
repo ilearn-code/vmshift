@@ -237,7 +237,18 @@ jobs:
       - name: Configure kubectl for LKE
         run: |
           mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+          ENV=${{ needs.determine-environment.outputs.environment }}
+          KUBECONFIG_SECRET="KUBECONFIG_${ENV^^}"
+          
+          # Set kubeconfig based on environment
+          if [ "$ENV" == "dev" ]; then
+            echo "${{ secrets.KUBECONFIG_DEV }}" > $HOME/.kube/config
+          elif [ "$ENV" == "staging" ]; then
+            echo "${{ secrets.KUBECONFIG_STAGING }}" > $HOME/.kube/config
+          else
+            echo "${{ secrets.KUBECONFIG_PRODUCTION }}" > $HOME/.kube/config
+          fi
+          
           chmod 600 $HOME/.kube/config
 
       - name: Verify cluster connection
@@ -255,67 +266,82 @@ jobs:
           kubectl create secret docker-registry ghcr-secret \
             --docker-server=ghcr.io \
             --docker-username=${{ github.actor }} \
-            --docker-password=${{ secrets.GHCR_PAT }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
             -n ${{ needs.determine-environment.outputs.namespace }}
 
       - name: Create database secrets for ${{ needs.determine-environment.outputs.environment }}
         run: |
           ENV=${{ needs.determine-environment.outputs.environment }}
           
-          # Generate environment-specific database credentials
-          DB_NAME="vmshift_${ENV}"
-          DB_USER="vmshift_${ENV}_user"
-          DB_PASSWORD="${{ secrets[format('DB_PASSWORD_{0}', needs.determine-environment.outputs.environment)] || 'vmshift_password_2024' }}"
+          # Get environment-specific database password
+          if [ "$ENV" == "dev" ]; then
+            DB_PASSWORD="${{ secrets.DB_PASSWORD_DEV }}"
+          elif [ "$ENV" == "staging" ]; then
+            DB_PASSWORD="${{ secrets.DB_PASSWORD_STAGING }}"
+          else
+            DB_PASSWORD="${{ secrets.DB_PASSWORD_PRODUCTION }}"
+          fi
+          
+          DB_NAME="vmshift"
+          DB_USER="postgres"
           
           # Create secrets
           kubectl delete secret vmshift-secrets -n ${{ needs.determine-environment.outputs.namespace }} --ignore-not-found
           kubectl create secret generic vmshift-secrets \
-            --from-literal=database-url="postgresql://${DB_USER}:${DB_PASSWORD}@postgresql:5432/${DB_NAME}" \
-            --from-literal=redis-url="redis://redis:6379/0" \
-            --from-literal=celery-broker="redis://redis:6379/0" \
-            --from-literal=celery-backend="redis://redis:6379/0" \
+            --from-literal=DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@postgresql:5432/${DB_NAME}" \
+            --from-literal=REDIS_URL="redis://redis:6379/0" \
+            --from-literal=CELERY_BROKER_URL="redis://redis:6379/0" \
+            --from-literal=CELERY_RESULT_BACKEND="redis://redis:6379/1" \
+            --from-literal=SECRET_KEY="vmshift-secret-${ENV}-$(date +%s)" \
             -n ${{ needs.determine-environment.outputs.namespace }}
 
       - name: Deploy/Upgrade with Helm
         run: |
-          helm upgrade --install vmshift-${{ needs.determine-environment.outputs.environment }} ./helm/vmshift \
+          # Use environment-specific values file
+          VALUES_FILE="values-prod.yaml"
+          if [ "${{ needs.determine-environment.outputs.environment }}" == "dev" ]; then
+            VALUES_FILE="values-dev.yaml"
+          elif [ "${{ needs.determine-environment.outputs.environment }}" == "staging" ]; then
+            VALUES_FILE="values-staging.yaml"
+          fi
+          
+          helm upgrade --install vmshift ./helm/vmshift \
             --namespace ${{ needs.determine-environment.outputs.namespace }} \
-            --values ./helm/vmshift/${{ needs.determine-environment.outputs.values-file }} \
-            --set image.tag=${{ github.sha }} \
-            --set image.pullPolicy=Always \
+            --values ./helm/vmshift/${VALUES_FILE} \
+            --set api.image.repository=ghcr.io/${{ github.repository }}-api \
+            --set api.image.tag=latest \
+            --set celery.image.repository=ghcr.io/${{ github.repository }}-celery \
+            --set celery.image.tag=latest \
+            --set imagePullSecrets[0].name=ghcr-secret \
             --wait \
-            --timeout 10m \
-            --debug
+            --timeout 10m
 
       - name: Verify deployment
         run: |
+          echo "📦 Pods:"
           kubectl get pods -n ${{ needs.determine-environment.outputs.namespace }}
+          echo ""
+          echo "🌐 Services:"
           kubectl get svc -n ${{ needs.determine-environment.outputs.namespace }}
-          kubectl get ingress -n ${{ needs.determine-environment.outputs.namespace }}
-
-      - name: Check pod health
-        run: |
+          echo ""
+          echo "✅ Waiting for API to be ready..."
           kubectl wait --for=condition=ready pod \
             -l app=vmshift-api \
             -n ${{ needs.determine-environment.outputs.namespace }} \
-            --timeout=300s || true
+            --timeout=300s || echo "⚠️  Pods still starting..."
 
       - name: Display deployment info
         run: |
           echo "🎉 Deployment to ${{ needs.determine-environment.outputs.environment }} complete!"
           echo "📍 Namespace: ${{ needs.determine-environment.outputs.namespace }}"
-          echo "🏷️  Image Tag: ${{ github.sha }}"
-          echo "🌐 URL: https://${{ needs.determine-environment.outputs.environment == 'production' && 'vmshift.satyamay.tech' || format('vmshift-{0}.satyamay.tech', needs.determine-environment.outputs.environment) }}"
-        run: |
-          kubectl get pods -n vmshift
-          kubectl get services -n vmshift
-          kubectl get ingress -n vmshift
-          helm list -n vmshift
-
-      - name: Health check
-        run: |
-          # Wait for the service to be ready
-          sleep 30
-          # Get the service endpoint and check health
-          kubectl run curl-test --image=curlimages/curl --rm -it --restart=Never -n vmshift -- \
-            curl -sf http://vmshift-api-service/health || echo "Health check pending..."
+          echo "🐳 Images: ghcr.io/${{ github.repository }}-api:latest"
+          
+          # Get LoadBalancer IP
+          LB_IP=$(kubectl get svc vmshift-api -n ${{ needs.determine-environment.outputs.namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          echo "🌐 LoadBalancer IP: ${LB_IP}"
+          
+          if [ "${{ needs.determine-environment.outputs.environment }}" == "production" ]; then
+            echo "🔗 URL: https://vmshift.satyamay.tech"
+          else
+            echo "🔗 URL: https://vmshift-${{ needs.determine-environment.outputs.environment }}.satyamay.tech"
+          fi
