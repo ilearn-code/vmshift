@@ -47,6 +47,7 @@ postgresql:
     tag: "16-alpine"
   persistence:
     size: 10Gi
+    storageClass: linode-block-storage-retain
   resources:
     requests:
       memory: "512Mi"

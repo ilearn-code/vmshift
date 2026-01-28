@@ -38,6 +38,7 @@ postgresql:
     tag: "16-alpine"
   persistence:
     size: 5Gi  # Smaller storage for dev
+    storageClass: linode-block-storage-retain
   resources:
     requests:
       memory: "256Mi"
