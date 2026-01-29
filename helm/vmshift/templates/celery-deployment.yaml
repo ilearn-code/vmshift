@@ -79,7 +79,7 @@ spec:
         - name: {{ .Values.celery.beat.name }}
           image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}-celery:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
+          command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info", "--schedule=/var/run/celery/celerybeat-schedule"]
           env:
             - name: DATABASE_URL
               valueFrom:
@@ -101,5 +101,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret }}
                   key: CELERY_RESULT_BACKEND
+          volumeMounts:
+            - name: celerybeat-schedule
+              mountPath: /var/run/celery
           resources:
             {{- toYaml .Values.celery.beat.resources | nindent 12 }}
+      volumes:
+        - name: celerybeat-schedule
+          emptyDir: {}
