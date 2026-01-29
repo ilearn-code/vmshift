@@ -5,7 +5,7 @@ environment: production
 image:
   registry: ghcr.io
   repository: ilearn-code/vmshift
-  tag: latest  # Should be overridden with specific version tag in prod
+  tag: "2d778ab"
   pullPolicy: IfNotPresent  # Don't always pull in production
 
 replicaCount:
@@ -44,7 +44,7 @@ autoscaling:
 postgresql:
   enabled: true
   image:
-    tag: "16-alpine"
+    tag: "2d778ab"
   persistence:
     size: 20Gi
     storageClass: linode-block-storage-retain
