@@ -43,14 +43,26 @@ jobs:
         id: env
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            ENV="${{ github.event.inputs.environment }}"
           elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "environment=production" >> $GITHUB_OUTPUT
+            ENV="production"
           elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
-            echo "environment=staging" >> $GITHUB_OUTPUT
+            ENV="staging"
           else
-            echo "environment=development" >> $GITHUB_OUTPUT
+            ENV="development"
           fi
+          
+          # Map environment to values file name (prod vs production)
+          if [ "$ENV" == "production" ]; then
+            VALUES_SUFFIX="prod"
+          elif [ "$ENV" == "staging" ]; then
+            VALUES_SUFFIX="staging"
+          else
+            VALUES_SUFFIX="dev"
+          fi
+          
+          echo "environment=${ENV}" >> $GITHUB_OUTPUT
+          echo "values_suffix=${VALUES_SUFFIX}" >> $GITHUB_OUTPUT
 
       - name: Get image tag
         id: tag
@@ -63,10 +75,11 @@ jobs:
       - name: Update Helm values with new image tag
         run: |
           ENV="${{ steps.env.outputs.environment }}"
+          VALUES_SUFFIX="${{ steps.env.outputs.values_suffix }}"
           TAG="${{ steps.tag.outputs.tag }}"
           
           # Update the appropriate Helm values file
-          VALUES_FILE="helm/vmshift/values-${ENV}.yaml"
+          VALUES_FILE="helm/vmshift/values-${VALUES_SUFFIX}.yaml"
           
           # Replace image tag in values file
           sed -i "s/tag: .*/tag: \"${TAG}\"/g" "${VALUES_FILE}"
