@@ -5,7 +5,7 @@ environment: production
 image:
   registry: ghcr.io
   repository: ilearn-code/vmshift
-  tag: "f15d32d"
+  tag: "aa583cf"
   pullPolicy: IfNotPresent  # Don't always pull in production
 
 replicaCount:
@@ -44,7 +44,7 @@ autoscaling:
 postgresql:
   enabled: true
   image:
-    tag: "f15d32d"
+    tag: "aa583cf"
   persistence:
     size: 20Gi
     storageClass: linode-block-storage-retain
