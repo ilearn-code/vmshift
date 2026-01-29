@@ -1,6 +1,7 @@
 # ArgoCD GitOps Workflow
 # Updates image tags and Helm values in Git when new images are pushed
-# ArgoCD watches the repo and automatically syncs changes to cluster
+# ArgoCD watches the vmshift repo and automatically syncs changes to cluster
+# Infrastructure is managed separately in iac-vmshift repo
 
 name: GitOps - Update Manifests
 
