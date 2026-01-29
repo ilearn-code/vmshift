@@ -1,15 +1,27 @@
-# ArgoCD Image Updater Workflow
-# Updates image tags in Git when new images are pushed
-# Works with ArgoCD for full GitOps
+# ArgoCD GitOps Workflow
+# Updates image tags and Helm values in Git when new images are pushed
+# ArgoCD watches the repo and automatically syncs changes to cluster
 
-name: ArgoCD Image Update
+name: GitOps - Update Manifests
 
 on:
   workflow_run:
     workflows: ["CI/CD Pipeline"]
     types:
       - completed
-    branches: [main]
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to update'
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+          - development
 
 env:
   REGISTRY: ghcr.io
@@ -20,32 +32,76 @@ jobs:
   update-manifests:
     name: Update K8s Manifests
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Update image tags in Kustomization
+      - name: Determine environment
+        id: env
         run: |
-          # Get the short SHA
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            if [ "${{ github.event.inputs.environment }}" == "production" ]; then
+              Get image tag
+        id: tag
+        run: |
+          # Use short SHA as tag
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "Image tag: ${SHORT_SHA}"
+
+      - name: Update Helm values with new image tag
+        run: |
+          ENV="${{ steps.env.outputs.environment }}"
+          TAG="${{ steps.tag.outputs.tag }}"
           
-          # Update production kustomization with new image tag
-          cd k8s/overlays/production
+          # Update the appropriate Helm values file
+          VALUES_FILE="helm/vmshift/values-${ENV}.yaml"
           
-          # Use sed to update the image tags
-          sed -i "s/newTag: .*/newTag: ${SHORT_SHA}/g" kustomization.yaml
+          # Replace image tag in values file
+          sed -i "s/tag: .*/tag: \"${TAG}\"/g" "${VALUES_FILE}"
           
-          echo "Updated image tags to: ${SHORT_SHA}"
-          cat kustomization.yaml
+          echo "Updated ${VALUES_FILE} with tag: ${TAG}"
+          cat "${VALUES_FILE}" | grep -A 2 "image:"
+
+      - name: Update Kustomization overlay (if using Kustomize)
+        if: false  # Enable if using Kustomize overlays
+        run: |
+          ENV="${{ steps.env.outputs.environment }}"
+          TAG="${{ steps.tag.outputs.tag }}"
+          
+          if [ "${ENV}" == "production" ]; then
+            OVERLAY="production"
+          elif [ "${ENV}" == "staging" ]; then
+            OVERLAY="staging"
+          else
+            OVERLAY="development"
+          fi
+          
+          cd "k8s/overlays/${OVERLAY}"
+          sed -i "s/newTag: .*/newTag: ${TAG}/g" kustomization.yaml
+          echo "Updated kustomization.yaml in overlay: ${OVERLAY}"
 
       - name: Commit and push changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Check if there are changes
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          ENV="${{ steps.env.outputs.environment }}"
+          TAG="${{ steps.tag.outputs.tag }}"
+          
+          git add helm/vmshift/values-*.yaml
+          # git add k8s/overlays/  # Uncomment if using Kustomize
+          git commit -m "chore(${ENV}): update image tag to ${TAG} [skip ci]"
+          git push origin ${{ steps.env.outputs.branch }}
+          
+          echo "✅ Pushed manifest updates to branch: ${{ steps.env.outputs.branch }}"
+          echo "🔄 ArgoCD will automatically sync the changes.com"
           git config --local user.name "github-actions[bot]"
           
           # Check if there are changes
